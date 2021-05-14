@@ -1,0 +1,69 @@
+WHAT NEEDS DOING NOW
+
+Steps to serve specific tokens based on user
+
+1) If my head isn't up my ass I need to do something like
+
+	fill out a hidden method='POST' action = 'http://localhost:8000/lobby' form
+
+	code something like: $('#inset_form').html('<form action="http://example.com/vote/' + Username or access token or whatever + '" name="vote" method="post" style="display:none;"><input type="text" name="api_url" value="' + Return_URL + '" /></form>');
+
+	Or I need to make a proper login program that knows which user is currently in the /lobby .html and can then pull the appropriate token from the database
+
+1 B) How tf do you get variables from django database => javascript
+	
+	maybe like an ajax get request to the django server
+
+2) Once I have a way of reliably associating the right access token with the current user in the lobby I need to then split users into master users and slaves
+
+	On "Make Lobby" click I need to assign the user as a master user
+	On "Join Lobby" click I need to assign the user as a slave user
+
+3) Once there are designations for all users in all lobbies I need to set up the calls
+
+	The master user's data gets the CURRENT_SONG API pull all the time
+	The slave users get the DEVICES and PLAY API pull and put respectively when they join and on song change
+
+	Need a variable tracking current track and when the variable changes it needs to trigger another series of PLAY API puts
+
+!!!!!!!!!!!!!!!!!!!!!!!!! POST SCRIPT !!!!!!!!!!!!!!!!!!!!!!!!!!
+
+1) Worth noting that with the hidden POST redirect I may not even have needed to use django which is immensely frustrating
+
+	Ultimately with a database I have more options for manipulating the data which is nice
+	But deploying on pythonanywhere instead of literally anywhere I want is kind of a scam
+
+2) Might be worth re-examining the pure JS code
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+######################### DONE FOR NOW ######################### 
+
+
+Steps to Store Access Tokens and Serve them through Django
+
+1) Add form tags and textfield to index.html with label 'Username'
+	-This will create a unique username for the database to attach Spotify API token to
+2) In addition to the onlick='requestAuthorization()' for the input tag nin index.html also need the input tag to submit form data
+	-Form submission should add the user to authenticate app's models.py stored in SQL database
+	-Then redirect to Spotify API occurs
+	-Log in through Spotify API
+	-Redirect to refresh_token.html occurs
+3) onPageLoad() => handleAuthorizationResponse() code will parse the code from the page url and store 'access_token' in local storage. It should also push the variable to Django through an ajax call:
+	$.ajax({
+         url: '/authenticate/', (???)
+         data: {'access_token': access_token},
+         type: 'POST'
+       }).done(function(response){
+         console.log(response);
+       });
+4) authenticate views.py def refreshToken(request): should look something like:
+	def refresh_token(request):
+		if request.method == 'POST':
+			modelvar = Model.objects.get()
+			modelvar.user = request.POST['access_token']
+			modelvar.save()
+		return render(request, 'authenticate/refresh_token.html')
+
+################################################################### 
