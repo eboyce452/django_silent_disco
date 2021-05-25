@@ -78,8 +78,7 @@ function handleAuthorizationResponse(){
 		addToDatabase(username, password, access_token, refresh_token);
 		localStorage.removeItem('username');
 		localStorage.removeItem('password');
-		location.href = 'http://127.0.0.1:8000/lobby';
-		// to add post data such as current username construct and fill out a hidden method='POST' action = 'http://gotolobbyurl' form
+		window.location.replace('lobby/?username='+username);
 	}
 	else {
 		console.log(this.responseText);
