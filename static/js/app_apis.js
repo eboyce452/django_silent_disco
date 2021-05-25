@@ -1,93 +1,202 @@
-const access_token = '';//code to fetch access token from database
-
 const CURRENT_PLAY = "https://api.spotify.com/v1/me/player/currently-playing";
 const DEVICES = "https://api.spotify.com/v1/me/player/devices";
 const PLAY = "https://api.spotify.com/v1/me/player/play";
 
-async function doCode(){
+// gray code is test for closing all sockets
+// var all_sockets = [];
 
-	const getAlbum = async () => {
+function createSocket(roomName, token, master_slave){
+                
+    const chatSocket = new WebSocket(
+    'ws://'
+    + window.location.host
+    + '/ws/lobby/'
+    + roomName
+    + '/'
+    );
 
-		const result = await fetch(CURRENT_PLAY, {
-			method: "GET",
-			headers: {'Authorization' : 'Bearer ' + access_token}
-		});
+    // all_sockets.push({'room_name': roomName,'socket':chatSocket});
 
-		const data = await result.json();
-		return data.item.album.uri;
-	};
+    if (master_slave == 'slave'){
+    	chatSocket.onmessage = async function(e) {
+	        const inc_data = await JSON.parse(e.data);
 
-	const getTrackPos = async () => {
+	        let album = null;
+	        let track_num = null;
+	        let track_pos = null;
+	        let image_url = null;
+	        let song_name = null;
+	        let artist_name = null;
+	        let active_device = null;
+	        let is_socket_new = null;
 
-		const result = await fetch(CURRENT_PLAY, {
-			method: "GET",
-			headers: {'Authorization' : 'Bearer ' + access_token}
-		});
+	        if (inc_data.message === 'new_socket_request'){
+	        	return
+	        }
 
-		const data = await result.json();
-		return data.item.track_number;
-	};
+	        if (inc_data.message === 'master_present'){
+	        	$('#test').html(Math.random());
+	        	return
+	        }
 
-	const getSong = async () => {
+	        if (inc_data.message.token != null){
+	        	let init_track_info = await currentplayInfo(inc_data.message.token);
+	        	let socket_current_play = await currentplayInfo(token);
 
-		const result = await fetch(CURRENT_PLAY, {
-			method: "GET",
-			headers: {'Authorization' : 'Bearer ' + access_token}
-		});
+	        	album = await init_track_info['album'];
+		        track_num = await init_track_info['track_num'];
+		        track_pos = await init_track_info['track_pos'];
 
-		const data = await result.json();
-		return data.item.uri;
-	};
+		        image_url = await init_track_info['image_url'];
+		        song_name = await init_track_info['song_name'];
+		        artist_name = await init_track_info['artist_name'];
 
-	const getDevice = async () => {
+		        is_socket_new = await socket_current_play['is_playing'];
 
-		const result = await fetch(DEVICES, {
-			method: "GET",
-			headers: {'Authorization' : 'Bearer ' + access_token}
-		});
+		        if (is_socket_new == true && init_track_info['album'] == socket_current_play['album'] && init_track_info['track_num'] == socket_current_play['track_num']){
+		        	if (image_url != null && song_name != null && artist_name != null){
+	        			document.getElementById('artist_image').innerHTML = await '<img src="' + image_url + '"><div class="jumbotron"><h1>' + song_name + '</h1><h2>' + artist_name + '</h2></div>';	
+	        		}
+		        	return
+		        }
 
-		const data = await result.json();
+		        else {
+		        	await console.log('new socket registered');
+		        }
 
-		for (var x = 0; x < data.devices.length; x++){
-			var active = data.devices[x].is_active;
-			
-			if ( active == true ){
-				var playback_device = data.devices[x].id
-			}
-		}
-		return playback_device;
-	};
+		        active_device = await currentdeviceInfo(token);
+	        }
 
-	const playSong = async () => {
+	        else {
+		        album = await inc_data.message.album;
+		        track_num = await inc_data.message.track_num;
+		        track_pos = await inc_data.message.track_pos;
 
-		console.log(curent_album);
-		console.log(track_position);
-		console.log(active_device);
+		        image_url = await inc_data.message.image_url;
+		        song_name = await inc_data.message.song_name;
+		        artist_name = await inc_data.message.artist_name;
 
-		let data = {
-			'context_uri' : curent_album,
-			'offset': {
-				'position': track_position - 1
-			},
-			'position_ms': 0
+		        active_device = await currentdeviceInfo(token);
+	        }
+
+	        if (image_url != null && song_name != null && artist_name != null){
+	        	document.getElementById('artist_image').innerHTML = await '<img src="' + image_url + '"><div class="jumbotron"><h1>' + song_name + '</h1><h2>' + artist_name + '</h2></div>';	
+	        }
+
+	        if (active_device == undefined){
+	        	console.log('NO DEVICE');
+	        	return
+	        }
+	        
+	        let data = {
+				'context_uri' : album,
+				'offset': {
+					'position': track_num - 1
+				},
+				'position_ms': track_pos
+			};
+
+	        await fetch(PLAY + "?device_id=" + active_device, {
+				method: "PUT",
+				headers: {
+					'Content-Type' : 'application/json',
+					'Authorization' : 'Bearer ' + token
+				},
+				body: JSON.stringify(data)
+			});
+
+			console.log('Play request submitted');
 		};
+	}
 
-		await fetch(PLAY + "?device_id=" + active_device, {
-			method: "PUT",
-			headers: {
-				'Content-Type' : 'application/json',
-				'Authorization' : 'Bearer ' + access_token
-			},
-			body: JSON.stringify(data)
-		});
+    if (master_slave == 'master'){
+    	chatSocket.onmessage = async function(e) {
+    		var connection_request = await JSON.parse(e.data);
+    		if (connection_request.message == 'new_socket_request'){
+    			var message = {
+    				'token':token,
+    				'data_type':'token'
+    			}
+    			await chatSocket.send(JSON.stringify({
+    				'message':message,
+    			}));
+    		}
+    	};
 
-		console.log('Play request submitted');
-		console.log(track_position);
-	};
+    	chatSocket.onopen = function(e) {
+    		console.log('Master user connected');
+    	}
+    }
 
-	let curent_album = await getAlbum();
-	let track_position = await getTrackPos();
-	let active_device = await getDevice();
+    if (master_slave == 'slave'){
+    	chatSocket.onopen = function(e) {
+    		var init_request = 'new_socket_request';
+    		chatSocket.send(JSON.stringify({
+    			'message': init_request
+    		}));
+    	};
+    }
 
-	await playSong();
-};
+    chatSocket.onclose = function(e) {
+        console.error('Chat socket closed unexpectedly');
+    };
+
+    return chatSocket;
+}
+
+async function currentplayInfo(token){
+    const result = await fetch(CURRENT_PLAY, {
+        method: "GET",
+        headers: {
+            'Authorization' : 'Bearer ' + token,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    const data = await result.json();
+    
+    if (data.item == null){
+    	var replacement_info = await currentplayInfo(token);
+    	return replacement_info;
+    }
+
+    const album = data.item.album.uri;
+    const track_num = data.item.track_number;
+    const track_pos = data.progress_ms;
+    const image_url = data.item.album.images[0]['url'];
+    const song_name = data.item.name;
+    const artist_name = data.item.artists[0]['name'];
+
+    const track_info = {
+        'album':album,
+        'track_num':track_num,
+        'track_pos':track_pos,
+        'image_url':image_url,
+        'song_name':song_name,
+        'artist_name':artist_name,
+        'is_playing':data.is_playing,
+    };
+
+    return track_info;
+}
+
+async function currentdeviceInfo(token){
+	const result = await fetch(DEVICES, {
+		method: "GET",
+		headers: {
+			'Authorization' : 'Bearer ' + token,
+            'Content-Type': 'application/json',
+		},
+	});
+
+	const data = await result.json();
+	for (var x = 0; x < data.devices.length; x++){
+		var active = data.devices[x].is_active;
+			
+		if ( active == true ){
+			var playback_device = data.devices[x].id
+		}
+	}
+		
+	return playback_device;
+}
